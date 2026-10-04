@@ -150,11 +150,47 @@ CREATE TABLE IF NOT EXISTS t_veh_run_line (
   PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='运行界次判定线';
 
+CREATE TABLE IF NOT EXISTS t_veh_run_verdict (
+  id bigint NOT NULL COMMENT '主键',
+  alarm_no varchar(64) DEFAULT NULL COMMENT '报警代号（结论挂在哪条报警上）',
+  measure_kind varchar(32) DEFAULT NULL COMMENT '所量的是车速还是连续驾驶时长',
+  report_value decimal(14,3) DEFAULT NULL COMMENT '车上报回来的数（报来那一头的单位）',
+  report_unit varchar(32) DEFAULT NULL COMMENT '报来那一头的单位',
+  conv_value decimal(14,3) DEFAULT NULL COMMENT '折到界册那一头后的数（与比数同一把舍法）',
+  judged_at datetime DEFAULT NULL COMMENT '问话的那一刻',
+  level_no int DEFAULT NULL COMMENT '归层 0够不上层 1提示 2严管 3立案',
+  conclusion varchar(32) DEFAULT NULL COMMENT '结论栏：提示/严管/立案/未达起算/无可用界',
+  rule_code varchar(64) DEFAULT NULL COMMENT '界次代号（无可用界时留空）',
+  eff_start datetime DEFAULT NULL COMMENT '起用那一日（无可用界时留空）',
+  del_flag int DEFAULT '0' COMMENT '删除标记 0正常 1删除',
+  create_by varchar(64) DEFAULT NULL COMMENT '创建者',
+  create_time datetime DEFAULT NULL COMMENT '创建时间',
+  update_by varchar(64) DEFAULT NULL COMMENT '更新者',
+  update_time datetime DEFAULT NULL COMMENT '更新时间',
+  remark varchar(500) DEFAULT NULL COMMENT '备注',
+  PRIMARY KEY (id),
+  KEY idx_veh_verdict_alarm_no (alarm_no),
+  KEY idx_veh_verdict_judged_at (judged_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='报警归层结论';
+
 -- 初始档案数据：t_veh_ent 预置两条名录，id=0 在册、id=1 已销户，
 -- 供界次判定与联网清单挂接时按在册口径取用。
 INSERT IGNORE INTO t_veh_ent (id, site_no, site_name, site_type, road_name, status, del_flag, create_by, create_time)
 VALUES (0, 'YH00', '宁州顺达客运有限公司（道路旅客运输业户，在册）', '道路旅客运输业户', '宁川省—宁州市—临江县', 0, 0, 'seed', NOW()),
        (1, 'YH01', '临江通达危险货物运输站（停运后销户）', '危险货物运输业户', '宁川省—宁州市—临江县', 1, 0, 'seed', NOW());
+
+-- 界册预置四条界：宁川省给营运车辆的运行界次先后定过四回。
+-- NCX-01 为早年手抄进册的存量界（交班一栏空着，认作一直在位）；
+-- NCX-02 已停用（册里翻得着、屏上列得出，只是不参与比数）；
+-- NCX-03 管到 2026-01-01 之前，NCX-04 为今年新定、从 2026-01-01 起头（交班当日不含，新界从该日起头）。
+-- 同一刻凑出两条在位时，交班次序（priority）高的那条说话。
+INSERT IGNORE INTO t_veh_run_line
+  (id, rule_code, rule_name, measure_kind, th1_max, th2_max, th3_max, unit_kind, eff_start, eff_end, priority, status, del_flag, create_by, create_time)
+VALUES
+  (1, 'NCX-01', '头一回定的运行界（存量手抄进册）', 'speed', 80.000, 100.000, 120.000, 'km/h', '2019-01-01 00:00:00', NULL, 10, 0, 0, 'seed', NOW()),
+  (2, 'NCX-02', '第二回定的运行界（已停用）', 'speed', 75.000, 95.000, 115.000, 'km/h', '2021-07-01 00:00:00', '2023-07-01 00:00:00', 20, 1, 0, 'seed', NOW()),
+  (3, 'NCX-03', '第三回定的运行界', 'speed', 60.000, 85.000, 105.000, 'km/h', '2023-07-01 00:00:00', '2026-01-01 00:00:00', 30, 0, 0, 'seed', NOW()),
+  (4, 'NCX-04', '第四回定的运行界（今年新定）', 'speed', 70.000, 90.000, 110.000, 'km/h', '2026-01-01 00:00:00', NULL, 40, 0, 0, 'seed', NOW());
 
 -- 旧库补列（t_veh_bind_page 为旧版表结构时逐条执行；新库由上面的 CREATE TABLE 带出，勿重复执行）：
 -- ALTER TABLE t_veh_bind_page ADD COLUMN sign_no varchar(64) DEFAULT NULL COMMENT '随页签认码（系统排号）' AFTER bill_no;
